@@ -91,6 +91,7 @@ class InfoGAN(object):
         model.add(UpSampling2D())
         model.add(Conv2D(64,kernel_size=3, padding="same"))
         model.add(Activation("relu"))
+        model.add(BatchNormalization(momentum=0.8))
         model.add(Conv2D(self.channels,kernel_size=3, padding="same"))
         model.add(Activation("tanh"))
 
@@ -98,6 +99,9 @@ class InfoGAN(object):
         img = model(gen_input)
         model.summary()
         return Model(gen_input, img)
+
+
+
 
     def build_disk_and_qnet(self):
         # it is inverse of the generator
@@ -129,8 +133,6 @@ class InfoGAN(object):
         return Model(img, validity), Model(img, label)
 
 
-
-
     def mutual_info_loss(self, c, c_given_x):
         # equation 4
         eps = 1e-8
@@ -151,6 +153,7 @@ class InfoGAN(object):
         y_train = y_train.reshape(-1,1)
         valid = np.ones((batch_size,1))
         fake = np.zeros((batch_size,1))
+
         for epoch in range(epochs):
             # select a random batch images
             idx = np.random.randint(0, X_train.shape[0], batch_size)
@@ -159,7 +162,7 @@ class InfoGAN(object):
             gen_input = np.concatenate((sampled_noise, sampled_labels), axis=1)
             gen_imgs = self.generator.predict(gen_input)
             d_loss_real = self.discriminator.train_on_batch(imgs, valid)
-            d_loss_fake = self.discriminator.train_on_batch(imgs, fake)
+            d_loss_fake = self.discriminator.train_on_batch(gen_imgs, fake)
             d_loss = 0.5 * np.add(d_loss_real, d_loss_fake)
             g_loss = self.combined.train_on_batch(gen_input, [valid, sampled_labels])
             print ("%d [D loss: %.2f, acc.: %.2f%%] [Q loss: %.2f] [G loss: %.2f]" % (epoch, d_loss[0], 100*d_loss[1], g_loss[1], g_loss[2]))
@@ -199,4 +202,4 @@ class InfoGAN(object):
 
 if __name__ == '__main__':
     infogan = InfoGAN()
-    infogan.train(epochs=5000,batch_size=128, sample_interval=50)
+    infogan.train(epochs=50000,batch_size=128, sample_interval=500)
